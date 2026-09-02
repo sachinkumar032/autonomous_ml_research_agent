@@ -39,7 +39,7 @@ def _next_experiment_id() -> int:
 
 
 def run_experiment(config: dict, preprocessor, X_train, y_train, X_test, y_test,
-                    evaluate_fn) -> dict:
+                    evaluate_fn, dataset_version: str = "v1") -> dict:
     """Trains one config, evaluates it, saves a numbered experiment log, returns the result."""
     exp_id = _next_experiment_id()
 
@@ -54,11 +54,16 @@ def run_experiment(config: dict, preprocessor, X_train, y_train, X_test, y_test,
 
     metrics = evaluate_fn(pipeline, X_test, y_test)
 
+    from experiment_tracker import config_signature
+    signature = config_signature(config["model_family"], config["params"], dataset_version)
+
     log = {
         "experiment_id": exp_id,
         "name": config["name"],
         "model_family": config["model_family"],
         "params": config["params"],
+        "dataset_version": dataset_version,
+        "signature": signature,
         "train_seconds": train_seconds,
         "metrics": metrics,
     }
@@ -71,15 +76,40 @@ def run_experiment(config: dict, preprocessor, X_train, y_train, X_test, y_test,
 
 
 def run_all_experiments(configs: list[dict], preprocessor, X_train, y_train,
-                         X_test, y_test, evaluate_fn) -> list[dict]:
-    """Runs every config in sequence, logging each as it goes. Returns list of results."""
+                         X_test, y_test, evaluate_fn, dataset_version: str = "v1",
+                         skip_duplicates: bool = True) -> list[dict]:
+    """
+    Runs every config in sequence, logging each as it goes.
+    If skip_duplicates is True, configs whose exact (model_family, params,
+    dataset_version) signature already exists in experiment history are
+    skipped instead of retrained — this is the Level 3 change.
+    """
+    from experiment_tracker import already_tried, config_signature
+
+    existing_logs = load_all_experiment_logs()
     results = []
+    skipped = 0
+
     for config in configs:
+        if skip_duplicates:
+            match = already_tried(config["model_family"], config["params"], dataset_version, logs=existing_logs)
+            if match is not None:
+                print(f"Skipping {config['name']} — already tried as experiment #{match['experiment_id']} "
+                      f"(F1={match['metrics'].get('f1', 0):.3f})")
+                skipped += 1
+                continue
+
         print(f"Running experiment: {config['name']} ({config['model_family']})...")
-        result = run_experiment(config, preprocessor, X_train, y_train, X_test, y_test, evaluate_fn)
+        result = run_experiment(config, preprocessor, X_train, y_train, X_test, y_test,
+                                 evaluate_fn, dataset_version=dataset_version)
         f1 = result["log"]["metrics"]["f1"]
         print(f"  -> F1 = {f1:.3f}")
         results.append(result)
+        existing_logs.append(result["log"])  # so later configs in this same run see it too
+
+    if skip_duplicates and skipped:
+        print(f"\n{skipped} experiment(s) skipped as duplicates of existing history.")
+
     return results
 
 

@@ -1,17 +1,19 @@
 {
   "experiment_id": 2,
-  "name": "LogReg_C0.1",
+  "name": "LogReg_C1.0",
   "model_family": "Logistic Regression",
   "params": {
-    "C": 0.1,
+    "C": 1.0,
     "max_iter": 1000
   },
-  "train_seconds": 0.47,
+  "dataset_version": "v1",
+  "signature": "746c5b228aef",
+  "train_seconds": 0.21,
   "metrics": {
-    "accuracy": 0.80355871886121,
-    "precision": 0.6643835616438356,
-    "recall": 0.521505376344086,
-    "f1": 0.5843373493975904,
-    "roc_auc": 0.8399939106267371
+    "accuracy": 0.802846975088968,
+    "precision": 0.6610169491525424,
+    "recall": 0.5241935483870968,
+    "f1": 0.5847076461769115,
+    "roc_auc": 0.8402541402533595
   }
 }

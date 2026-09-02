@@ -1,10 +1,11 @@
 # Autonomous ML Research & Experimentation Agent
 
-**Status: Level 2 — Automatic experimentation loop**
+**Status: Level 3 — Experiment tracking**
 
 This is the foundation of a larger project that will eventually add
-LLM-driven agentic experimentation on top of a real ML pipeline. Levels 1-2
-prove the ML fundamentals and automation work before any agent logic is added.
+LLM-driven agentic experimentation on top of a real ML pipeline. Levels 1-3
+prove the ML fundamentals, automation, and memory work before any agent
+logic is added.
 
 ## What this does right now
 
@@ -17,7 +18,7 @@ prove the ML fundamentals and automation work before any agent logic is added.
 5. Evaluates each on accuracy, precision, recall, F1, and ROC-AUC.
 6. Picks the best model (by F1) and saves it, along with an experiment log.
 
-**Level 2 (automatic experimentation loop) — new:**
+**Level 2 (automatic experimentation loop):**
 1. Defines 9 experiment configurations automatically: 3 hyperparameter
    variants each for Logistic Regression, Random Forest, and XGBoost.
 2. Loops through every config, training and evaluating each one without
@@ -35,6 +36,30 @@ prove the ML fundamentals and automation work before any agent logic is added.
    (not just the current run), ranked by F1.
 5. Saves the single best-performing model found across all history.
 
+**Level 3 (experiment tracking) — new:**
+1. Every config now has a deterministic **signature** — a hash of
+   `(model_family, hyperparameters, dataset_version)`. Same config,
+   same signature, regardless of dict key ordering.
+2. Before training, the system checks: *"have I already tried this exact
+   config on this exact dataset version?"* If yes, it's **skipped**
+   instead of wastefully retrained.
+3. `preprocessing.py` now exposes a `DATASET_VERSION` constant. Bump it
+   whenever feature engineering changes, so old and new experiments are
+   never silently compared as if they used the same features.
+4. A new `experiment_tracker.py` module summarizes history — total
+   experiments run, best/worst F1 per model family, and the overall
+   best — in a compact structured shape. This is exactly what a future
+   LLM agent (Level 5) will read to answer "what have I already tried?"
+   and decide what to do next.
+
+Run it twice in a row and see the difference:
+```
+Skipping LogReg_C0.1 — already tried as experiment #1 (F1=0.584)
+...
+9 experiment(s) skipped as duplicates of existing history.
+```
+Add one new config to `model_configs.py` and re-run — only the new one trains.
+
 ## Project structure
 
 ```
@@ -49,7 +74,8 @@ autonomous-ml-research-agent/
 │       ├── training.py          # model definitions + training (Level 1)
 │       ├── evaluation.py        # metrics + model comparison
 │       ├── model_configs.py     # 9 experiment configs (Level 2)
-│       └── experiment_manager.py  # automatic run/log/leaderboard loop (Level 2)
+│       ├── experiment_manager.py  # run/log/leaderboard loop, skip-duplicates (Level 2-3)
+│       └── experiment_tracker.py  # signatures, duplicate detection, history summary (Level 3)
 ├── models/                 # saved best model (generated, gitignored)
 ├── experiments/            # one JSON log per experiment, auto-numbered
 ├── tests/                  # pytest sanity tests
@@ -109,8 +135,9 @@ come at higher levels.
 ## Roadmap
 
 - [x] **Level 1** — Dataset, EDA, preprocessing, baseline models
-- [x] **Level 2** — Automatic experimentation loop across models/configs (this repo state)
-- [ ] **Level 3** — Experiment tracking (avoid re-running identical configs, structured history)
+- [x] **Level 2** — Automatic experimentation loop across models/configs
+- [x] **Level 3** — Experiment tracking: signatures, duplicate-skipping, history summary (this repo state)
+- [ ] **Level 4** — LLM + tool calling
 - [ ] **Level 4** — LLM + tool calling
 - [ ] **Level 5** — LangGraph supervisor with conditional improvement loop
 - [ ] **Level 6** — Memory + RAG for ML guidance

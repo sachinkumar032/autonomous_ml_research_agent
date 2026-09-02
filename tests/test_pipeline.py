@@ -82,3 +82,57 @@ def test_leaderboard_ranks_by_f1(tmp_path, monkeypatch):
     ]
     board = leaderboard(logs=fake_logs)
     assert board.iloc[0]["name"] == "B"  # higher F1 should rank first
+
+
+# --- Level 3: experiment tracking ---
+
+def test_signature_is_deterministic_regardless_of_key_order():
+    from experiment_tracker import config_signature
+    sig_a = config_signature("XGBoost", {"max_depth": 5, "learning_rate": 0.05}, "v1")
+    sig_b = config_signature("XGBoost", {"learning_rate": 0.05, "max_depth": 5}, "v1")
+    assert sig_a == sig_b
+
+
+def test_signature_differs_for_different_params():
+    from experiment_tracker import config_signature
+    sig_a = config_signature("XGBoost", {"max_depth": 5}, "v1")
+    sig_b = config_signature("XGBoost", {"max_depth": 6}, "v1")
+    assert sig_a != sig_b
+
+
+def test_signature_differs_for_different_dataset_version():
+    from experiment_tracker import config_signature
+    sig_a = config_signature("XGBoost", {"max_depth": 5}, "v1")
+    sig_b = config_signature("XGBoost", {"max_depth": 5}, "v2")
+    assert sig_a != sig_b
+
+
+def test_already_tried_detects_exact_match():
+    from experiment_tracker import already_tried, config_signature
+    sig = config_signature("XGBoost", {"max_depth": 5}, "v1")
+    fake_logs = [{"experiment_id": 1, "signature": sig, "metrics": {"f1": 0.5}}]
+    match = already_tried("XGBoost", {"max_depth": 5}, "v1", logs=fake_logs)
+    assert match is not None
+    assert match["experiment_id"] == 1
+
+
+def test_already_tried_returns_none_for_new_config():
+    from experiment_tracker import already_tried, config_signature
+    sig = config_signature("XGBoost", {"max_depth": 5}, "v1")
+    fake_logs = [{"experiment_id": 1, "signature": sig, "metrics": {"f1": 0.5}}]
+    match = already_tried("XGBoost", {"max_depth": 99}, "v1", logs=fake_logs)
+    assert match is None
+
+
+def test_summarize_history_groups_by_model_family():
+    from experiment_tracker import summarize_history
+    fake_logs = [
+        {"experiment_id": 1, "model_family": "XGBoost", "metrics": {"f1": 0.5}},
+        {"experiment_id": 2, "model_family": "XGBoost", "metrics": {"f1": 0.6}},
+        {"experiment_id": 3, "model_family": "Random Forest", "metrics": {"f1": 0.4}},
+    ]
+    summary = summarize_history(fake_logs)
+    assert summary["total_experiments"] == 3
+    assert summary["by_model_family"]["XGBoost"]["count"] == 2
+    assert summary["by_model_family"]["XGBoost"]["best_f1"] == 0.6
+    assert summary["best"]["experiment_id"] == 2

@@ -1,18 +1,20 @@
 {
   "experiment_id": 9,
-  "name": "XGB_d5_lr0.05",
+  "name": "XGB_d7_lr0.03",
   "model_family": "XGBoost",
   "params": {
-    "max_depth": 5,
-    "learning_rate": 0.05,
+    "max_depth": 7,
+    "learning_rate": 0.03,
     "n_estimators": 300
   },
-  "train_seconds": 1.38,
+  "dataset_version": "v1",
+  "signature": "1a48532ba3b1",
+  "train_seconds": 1.83,
   "metrics": {
-    "accuracy": 0.7857651245551601,
-    "precision": 0.621160409556314,
-    "recall": 0.489247311827957,
-    "f1": 0.5473684210526316,
-    "roc_auc": 0.8326059915269234
+    "accuracy": 0.7879003558718861,
+    "precision": 0.6321428571428571,
+    "recall": 0.47580645161290325,
+    "f1": 0.5429447852760736,
+    "roc_auc": 0.8282991912063203
   }
 }

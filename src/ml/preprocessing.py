@@ -16,6 +16,11 @@ from sklearn.impute import SimpleImputer
 DROP_COLS = ["customerID"]
 TARGET = "Churn"
 
+# Bump this whenever preprocessing/feature logic changes meaningfully.
+# Experiment tracking uses this so old and new experiments aren't
+# compared as if they used the same features.
+DATASET_VERSION = "v1"
+
 
 def clean(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop(columns=[c for c in DROP_COLS if c in df.columns])
