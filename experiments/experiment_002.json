@@ -1,0 +1,17 @@
+{
+  "experiment_id": 2,
+  "name": "LogReg_C0.1",
+  "model_family": "Logistic Regression",
+  "params": {
+    "C": 0.1,
+    "max_iter": 1000
+  },
+  "train_seconds": 0.47,
+  "metrics": {
+    "accuracy": 0.80355871886121,
+    "precision": 0.6643835616438356,
+    "recall": 0.521505376344086,
+    "f1": 0.5843373493975904,
+    "roc_auc": 0.8399939106267371
+  }
+}

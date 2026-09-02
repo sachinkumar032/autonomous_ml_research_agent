@@ -1,0 +1,17 @@
+{
+  "experiment_id": 7,
+  "name": "RF_n500_d10",
+  "model_family": "Random Forest",
+  "params": {
+    "n_estimators": 500,
+    "max_depth": 10
+  },
+  "train_seconds": 2.68,
+  "metrics": {
+    "accuracy": 0.800711743772242,
+    "precision": 0.6642857142857143,
+    "recall": 0.5,
+    "f1": 0.5705521472392638,
+    "roc_auc": 0.8353826416429858
+  }
+}

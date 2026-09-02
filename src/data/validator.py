@@ -11,7 +11,7 @@ import pandas as pd
 
 def analyze_dataset(df: pd.DataFrame, target: str = "Churn") -> dict:
     numerical_cols = df.select_dtypes(include=["int64", "float64"]).columns.tolist()
-    categorical_cols = df.select_dtypes(include=["object", "str"]).columns.tolist()
+    categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
 
     # target shouldn't be counted as a feature column
     if target in numerical_cols:

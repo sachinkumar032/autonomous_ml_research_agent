@@ -31,7 +31,7 @@ def split_features_target(df: pd.DataFrame):
 
 def build_preprocessor(X: pd.DataFrame) -> ColumnTransformer:
     numerical_cols = X.select_dtypes(include=["int64", "float64"]).columns.tolist()
-    categorical_cols = X.select_dtypes(include=["object", "str"]).columns.tolist()
+    categorical_cols = X.select_dtypes(include=["object"]).columns.tolist()
 
     numeric_pipeline = Pipeline(steps=[
         ("imputer", SimpleImputer(strategy="median")),
