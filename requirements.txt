@@ -5,3 +5,5 @@ xgboost
 joblib
 pytest
 google-genai
+langgraph
+

@@ -1,6 +1,6 @@
 # Autonomous ML Research & Experimentation Agent
 
-**Status: Level 4 — LLM + Tool Calling**
+**Status: Level 5 — LangGraph supervisor with conditional improvement loop**
 
 This is the foundation of a larger project that adds LLM-driven agentic
 experimentation on top of a real ML pipeline. Levels 1-3 proved the ML
@@ -61,18 +61,22 @@ Skipping LogReg_C0.1 — already tried as experiment #1 (F1=0.584)
 Add one new config to `model_configs.py` and re-run — only the new one trains.
 
 **Level 4 (LLM + tool calling) — new:**
-1. Four tools are exposed to an LLM (Claude), matching Component 14 of
+1. Five tools are exposed to an LLM (Gemini), matching Component 14 of
    the blueprint: `analyze_dataset`, `get_leaderboard`, `get_history_summary`,
    `check_already_tried`, and `run_experiment`.
 2. The LLM is given a goal in plain English (e.g. *"try a Random Forest
    with more depth if it's new"*) and decides for itself which tools to
-   call, in what order, based on the results it gets back.
+   call, in what order, based on the results it gets back. Google's
+   `google-genai` SDK handles this automatically — plain Python functions
+   are passed as tools, and the SDK loops through calling Gemini,
+   executing whatever tool it requests, feeding results back, until
+   Gemini gives a final answer.
 3. Python still does every calculation. The LLM never computes a metric
    or trains a model itself — it only decides *which* deterministic tool
    to call and interprets the structured result.
 4. **Safety gate (blueprint Section 21):** reading the dataset or history
    is LOW RISK and auto-executed. Actually training a new model via
-   `run_experiment` is MEDIUM RISK — the agent loop pauses and asks a
+   `run_experiment` is MEDIUM RISK — the tool itself pauses and asks a
    human to type `y`/`n` before it actually runs.
 
 Example:
@@ -82,6 +86,53 @@ python3 run_agent.py "Try Random Forest with max_depth 8 if it's not already tri
 ```
 The second example will make the agent call `check_already_tried` first,
 then — if approved — `run_experiment`, training a real model.
+
+Uses `gemini-3.6-flash` by default (override with `GEMINI_MODEL`). (Note:
+Gemini 2.5 models are being retired by Google on October 16, 2026, so
+this project uses a current-generation model.)
+
+**Level 5 (LangGraph supervisor + conditional loop) — new:**
+
+This is the piece the blueprint calls "the strongest demonstration of
+agentic behavior" — a real feedback loop with a decision point, not
+just a fixed sequence of steps:
+
+```
+Analyze Dataset -> Preprocess -> Train Baseline -> Error Analysis
+                                                          |
+                                                   Need Improvement?
+                                              NO ---------+--------- YES
+                                              |                       |
+                                    Select Best Model      Create + Train Next Experiment
+                                              |                       |
+                                      Generate Report         (loops back to Error Analysis)
+                                              |
+                                             END
+```
+
+1. `src/ml/error_analysis.py` — Component 6 of the blueprint, finally
+   built. Inspects false negatives/positives and looks for numeric
+   feature patterns (e.g. "false negatives skew toward lower tenure"),
+   not just a single score.
+2. `src/agents/workflow.py` — the graph, built with LangGraph. Each
+   step is a node; `decide_node` is the conditional branch point.
+3. **The stopping rule** (`decide_node`) checks three things in order:
+   - Has the target F1 been reached? -> stop.
+   - Has the max iteration count been hit? -> stop.
+   - Are there any untried configs left? -> stop if not, otherwise improve.
+4. On "improve", the graph automatically trains the next untried
+   config from `model_configs.py`, re-runs error analysis, and asks
+   the question again — a real loop, not a fixed list.
+5. On "stop", it picks the best experiment across all history, and
+   generates a plain-text summary report.
+
+Run it:
+```bash
+python3 run_workflow.py --target-f1 0.62 --max-iterations 4
+```
+Try a low `--target-f1` (e.g. 0.3) to see it stop immediately after the
+baseline, or a high one (e.g. 0.95) to see it exhaust every untried
+config before stopping.
 
 ## Project structure
 
@@ -98,14 +149,19 @@ autonomous-ml-research-agent/
 │       ├── evaluation.py        # metrics + model comparison
 │       ├── model_configs.py     # 9 experiment configs (Level 2)
 │       ├── experiment_manager.py  # run/log/leaderboard loop, skip-duplicates (Level 2-3)
-│       └── experiment_tracker.py  # signatures, duplicate detection, history summary (Level 3)
+│       ├── experiment_tracker.py  # signatures, duplicate detection, history summary (Level 3)
+│       └── error_analysis.py    # false positive/negative pattern detection (Level 5)
 ├── src/
 │   ├── tools/
 │   │   ├── data_tools.py    # analyze_dataset as an LLM-callable tool (Level 4)
 │   │   └── ml_tools.py      # leaderboard, history, check/run experiment tools (Level 4)
 │   └── agents/
-│       ├── tool_schemas.py  # tool definitions the LLM sees (Level 4)
-│       └── supervisor.py    # the tool-calling agent loop (Level 4)
+│       ├── agent_tools.py       # tool wrappers w/ docstrings for Gemini auto function-calling (Level 4)
+│       ├── supervisor.py        # Gemini agent loop (Level 4, active)
+│       ├── supervisor_claude.py     # alternate Claude/Anthropic version (unused by default)
+│       ├── tool_schemas_claude.py   # manual tool schemas for the Claude version
+│       ├── graph_state.py       # shared state definition for the LangGraph workflow (Level 5)
+│       └── workflow.py          # the LangGraph graph + conditional improvement loop (Level 5)
 ├── models/                 # saved best model (generated, gitignored)
 ├── experiments/            # one JSON log per experiment, auto-numbered
 ├── tests/                  # pytest sanity tests
@@ -129,14 +185,19 @@ Level 2 & 3 (automatic experiments with skip-duplicate tracking):
 python3 run_experiments.py
 ```
 
-Level 4 (LLM agent — requires an Anthropic API key):
+Level 4 (LLM agent — requires a Gemini API key):
 ```bash
-# Get a key at console.anthropic.com, then set it:
-export ANTHROPIC_API_KEY=sk-ant-...      # Mac/Linux
-setx ANTHROPIC_API_KEY "sk-ant-..."       # Windows (open a new terminal after)
+# Get a key at aistudio.google.com/apikey, then set it:
+export GEMINI_API_KEY=AIza...      # Mac/Linux
+setx GEMINI_API_KEY "AIza..."       # Windows (open a new terminal after)
 
 python3 run_agent.py "What's the best experiment so far and why?"
 python3 run_agent.py "Try Random Forest with max_depth 8 if it's not already tried"
+```
+
+Level 5 (LangGraph conditional improvement loop):
+```bash
+python3 run_workflow.py --target-f1 0.62 --max-iterations 4
 ```
 
 Run the tests:
@@ -177,8 +238,9 @@ come at higher levels.
 - [x] **Level 1** — Dataset, EDA, preprocessing, baseline models
 - [x] **Level 2** — Automatic experimentation loop across models/configs
 - [x] **Level 3** — Experiment tracking: signatures, duplicate-skipping, history summary
-- [x] **Level 4** — LLM + tool calling with a human-approval gate on training (this repo state)
-- [ ] **Level 5** — LangGraph supervisor with conditional improvement loop
+- [x] **Level 4** — LLM + tool calling with a human-approval gate on training
+- [x] **Level 5** — LangGraph supervisor with conditional improvement loop (this repo state)
+- [ ] **Level 6** — Memory + RAG for ML guidance
 - [ ] **Level 5** — LangGraph supervisor with conditional improvement loop
 - [ ] **Level 6** — Memory + RAG for ML guidance
 - [ ] **Level 7** — FastAPI + Docker deployment
