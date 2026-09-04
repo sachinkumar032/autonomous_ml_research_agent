@@ -27,17 +27,19 @@ from google.genai import types
 
 from agent_tools import ALL_TOOLS
 
-MODEL = "gemini-3.6-flash"
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
 
 SYSTEM_PROMPT = (
     "You are the supervisor agent for an autonomous ML research project. "
     "The dataset is a customer churn binary classification problem. "
     "You have tools to inspect the dataset, review experiment history, "
-    "check whether a configuration has already been tried, and run new "
-    "experiments. Always check history before proposing a new experiment "
-    "-- don't repeat configurations that have already been tried. Keep "
-    "your reasoning concise. When you're done, give the user a clear "
-    "final answer summarizing what you found or did."
+    "check whether a configuration has already been tried, search ML "
+    "guidance and past experiment reports, and run new experiments. "
+    "Always check history before proposing a new experiment -- don't "
+    "repeat configurations that have already been tried. When deciding "
+    "what to try next, use get_ml_guidance to check for relevant advice "
+    "before guessing. Keep your reasoning concise. When you're done, "
+    "give the user a clear final answer summarizing what you found or did."
 )
 
 
@@ -60,9 +62,10 @@ def _print_call_history(response) -> None:
 
 def run_agent(goal: str) -> str:
     """
-    Sends the goal to Gemini with tools attached. The SDK automatically
-    calls whichever tools Gemini requests and loops until Gemini gives
-    a final text answer.
+    Sends the goal to Gemini with tools attached, using a chat session
+    (the SDK-recommended way to use automatic function calling). The
+    SDK automatically calls whichever tools Gemini requests and loops
+    until Gemini gives a final text answer.
     """
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
@@ -71,6 +74,11 @@ def run_agent(goal: str) -> str:
             "Get a key from aistudio.google.com/apikey and set it before running the agent."
         )
 
+    # Masked diagnostic -- helps confirm the key is actually being read,
+    # without ever printing the real key.
+    print(f"[Debug] GEMINI_API_KEY detected, length={len(api_key)}, "
+          f"starts with '{api_key[:4]}...', ends with '...{api_key[-4:]}'")
+
     client = genai.Client(api_key=api_key)
 
     config = types.GenerateContentConfig(
@@ -78,11 +86,8 @@ def run_agent(goal: str) -> str:
         tools=ALL_TOOLS,
     )
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=goal,
-        config=config,
-    )
+    chat = client.chats.create(model=MODEL, config=config)
+    response = chat.send_message(goal)
 
     _print_call_history(response)
 

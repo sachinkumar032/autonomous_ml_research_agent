@@ -42,3 +42,14 @@ def test_get_history_summary_tool_has_expected_keys():
 def test_check_already_tried_tool_detects_new_config():
     result = check_already_tried_tool("Random Forest", {"n_estimators": 12345, "max_depth": 99})
     assert result["already_tried"] is False
+
+
+def test_get_ml_guidance_tool_returns_relevant_results():
+    from ml_tools import DATA_PATH  # noqa: ensures import path is set up
+    import sys
+    sys.path.append("src/agents")
+    from agent_tools import get_ml_guidance
+
+    result = get_ml_guidance("what should I try for class imbalance?", top_k=3)
+    assert "results" in result
+    assert len(result["results"]) > 0

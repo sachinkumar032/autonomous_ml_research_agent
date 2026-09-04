@@ -17,6 +17,7 @@ import json
 sys.path.append("src/data")
 sys.path.append("src/ml")
 sys.path.append("src/tools")
+sys.path.append("src/rag")
 
 from data_tools import analyze_dataset_tool
 from ml_tools import (
@@ -25,6 +26,7 @@ from ml_tools import (
     check_already_tried_tool,
     run_experiment_tool as _run_experiment_tool,
 )
+from retriever import retrieve as _retrieve
 
 
 def analyze_dataset() -> dict:
@@ -67,6 +69,22 @@ def check_already_tried(model_family: str, params: dict) -> dict:
     return check_already_tried_tool(model_family, params)
 
 
+def get_ml_guidance(query: str, top_k: int = 3) -> dict:
+    """Search a knowledge base of ML guidance notes AND this project's own
+    experiment history for anything relevant to the query. Use this when
+    deciding what to try next -- e.g. "what should I try for class
+    imbalance?" or "why might XGBoost be underperforming?". Combines
+    curated ML best-practice notes with live retrieval over past
+    experiments actually run in this project. Read-only, safe to call anytime.
+
+    Args:
+        query: A natural-language question or topic to search for.
+        top_k: How many results to return.
+    """
+    results = _retrieve(query, top_k=top_k)
+    return {"results": results}
+
+
 def run_experiment(model_family: str, params: dict) -> dict:
     """Train and evaluate ONE new model configuration and log it as an
     experiment. This performs REAL training and takes real compute time.
@@ -86,4 +104,4 @@ def run_experiment(model_family: str, params: dict) -> dict:
     return _run_experiment_tool(model_family, params)
 
 
-ALL_TOOLS = [analyze_dataset, get_leaderboard, get_history_summary, check_already_tried, run_experiment]
+ALL_TOOLS = [analyze_dataset, get_leaderboard, get_history_summary, check_already_tried, get_ml_guidance, run_experiment]

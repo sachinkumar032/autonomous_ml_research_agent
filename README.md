@@ -1,6 +1,6 @@
 # Autonomous ML Research & Experimentation Agent
 
-**Status: Level 5 — LangGraph supervisor with conditional improvement loop**
+**Status: Level 6 — Memory + RAG**
 
 This is the foundation of a larger project that adds LLM-driven agentic
 experimentation on top of a real ML pipeline. Levels 1-3 proved the ML
@@ -134,6 +134,47 @@ Try a low `--target-f1` (e.g. 0.3) to see it stop immediately after the
 baseline, or a high one (e.g. 0.95) to see it exhaust every untried
 config before stopping.
 
+**Level 6 (Memory + RAG) — new:**
+
+Per blueprint Section 17, RAG here is a *focused* knowledge layer, not
+general web search — a small set of curated ML guidance notes, combined
+with this project's own experiment history so retrieval is grounded in
+what's actually been tried, not just generic advice.
+
+```
+Agent: "What should I try for class imbalance?"
+   |
+   v
+get_ml_guidance searches:
+   - Static guidance docs (class weighting, resampling, metric choice,
+     hyperparameter tuning notes, overfitting signs, when to stop)
+   - Live experiment history (every logged run, turned into a
+     retrievable one-line summary)
+   |
+   v
+Agent reasons over the results, then calls run_experiment if warranted
+```
+
+1. `src/rag/knowledge_base.py` — 9 short, curated notes covering the
+   situations this project actually runs into (imbalance handling,
+   metric selection, per-model tuning tips, overfitting recognition,
+   when to stop experimenting).
+2. `src/rag/retriever.py` — TF-IDF + cosine similarity retrieval. No
+   external embedding model download needed (the blueprint suggests
+   starting with a simpler local store before ChromaDB — this is that).
+   The corpus is rebuilt fresh on every query, so newly logged
+   experiments are searchable immediately.
+3. `get_ml_guidance` is now a 6th tool available to the Gemini agent.
+   The system prompt nudges it to check guidance before proposing a
+   new experiment, rather than guessing blind.
+
+Try it:
+```bash
+python3 run_agent.py "What should I try for class imbalance, and has it been tried yet?"
+```
+Watch it call `get_ml_guidance` first, then `check_already_tried`,
+before deciding whether to call `run_experiment`.
+
 ## Project structure
 
 ```
@@ -162,6 +203,10 @@ autonomous-ml-research-agent/
 │       ├── tool_schemas_claude.py   # manual tool schemas for the Claude version
 │       ├── graph_state.py       # shared state definition for the LangGraph workflow (Level 5)
 │       └── workflow.py          # the LangGraph graph + conditional improvement loop (Level 5)
+├── src/
+│   └── rag/
+│       ├── knowledge_base.py    # curated ML guidance notes (Level 6)
+│       └── retriever.py         # TF-IDF retrieval over guidance + experiment history (Level 6)
 ├── models/                 # saved best model (generated, gitignored)
 ├── experiments/            # one JSON log per experiment, auto-numbered
 ├── tests/                  # pytest sanity tests
@@ -198,6 +243,11 @@ python3 run_agent.py "Try Random Forest with max_depth 8 if it's not already tri
 Level 5 (LangGraph conditional improvement loop):
 ```bash
 python3 run_workflow.py --target-f1 0.62 --max-iterations 4
+```
+
+Level 6 (RAG-augmented agent — same entry point as Level 4, now with guidance search):
+```bash
+python3 run_agent.py "What should I try for class imbalance, and has it been tried yet?"
 ```
 
 Run the tests:
@@ -239,8 +289,9 @@ come at higher levels.
 - [x] **Level 2** — Automatic experimentation loop across models/configs
 - [x] **Level 3** — Experiment tracking: signatures, duplicate-skipping, history summary
 - [x] **Level 4** — LLM + tool calling with a human-approval gate on training
-- [x] **Level 5** — LangGraph supervisor with conditional improvement loop (this repo state)
-- [ ] **Level 6** — Memory + RAG for ML guidance
+- [x] **Level 5** — LangGraph supervisor with conditional improvement loop
+- [x] **Level 6** — Memory + RAG: ML guidance notes + experiment history retrieval (this repo state)
+- [ ] **Level 7** — FastAPI + Docker deployment
 - [ ] **Level 5** — LangGraph supervisor with conditional improvement loop
 - [ ] **Level 6** — Memory + RAG for ML guidance
 - [ ] **Level 7** — FastAPI + Docker deployment
