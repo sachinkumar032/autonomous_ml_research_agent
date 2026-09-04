@@ -1,11 +1,11 @@
 # Autonomous ML Research & Experimentation Agent
 
-**Status: Level 3 — Experiment tracking**
+**Status: Level 4 — LLM + Tool Calling**
 
-This is the foundation of a larger project that will eventually add
-LLM-driven agentic experimentation on top of a real ML pipeline. Levels 1-3
-prove the ML fundamentals, automation, and memory work before any agent
-logic is added.
+This is the foundation of a larger project that adds LLM-driven agentic
+experimentation on top of a real ML pipeline. Levels 1-3 proved the ML
+fundamentals, automation, and memory work. Level 4 introduces the first
+real LLM decision-making, restricted to a fixed set of tools.
 
 ## What this does right now
 
@@ -60,6 +60,29 @@ Skipping LogReg_C0.1 — already tried as experiment #1 (F1=0.584)
 ```
 Add one new config to `model_configs.py` and re-run — only the new one trains.
 
+**Level 4 (LLM + tool calling) — new:**
+1. Four tools are exposed to an LLM (Claude), matching Component 14 of
+   the blueprint: `analyze_dataset`, `get_leaderboard`, `get_history_summary`,
+   `check_already_tried`, and `run_experiment`.
+2. The LLM is given a goal in plain English (e.g. *"try a Random Forest
+   with more depth if it's new"*) and decides for itself which tools to
+   call, in what order, based on the results it gets back.
+3. Python still does every calculation. The LLM never computes a metric
+   or trains a model itself — it only decides *which* deterministic tool
+   to call and interprets the structured result.
+4. **Safety gate (blueprint Section 21):** reading the dataset or history
+   is LOW RISK and auto-executed. Actually training a new model via
+   `run_experiment` is MEDIUM RISK — the agent loop pauses and asks a
+   human to type `y`/`n` before it actually runs.
+
+Example:
+```bash
+python3 run_agent.py "What's the best experiment so far and why?"
+python3 run_agent.py "Try Random Forest with max_depth 8 if it's not already tried"
+```
+The second example will make the agent call `check_already_tried` first,
+then — if approved — `run_experiment`, training a real model.
+
 ## Project structure
 
 ```
@@ -76,6 +99,13 @@ autonomous-ml-research-agent/
 │       ├── model_configs.py     # 9 experiment configs (Level 2)
 │       ├── experiment_manager.py  # run/log/leaderboard loop, skip-duplicates (Level 2-3)
 │       └── experiment_tracker.py  # signatures, duplicate detection, history summary (Level 3)
+├── src/
+│   ├── tools/
+│   │   ├── data_tools.py    # analyze_dataset as an LLM-callable tool (Level 4)
+│   │   └── ml_tools.py      # leaderboard, history, check/run experiment tools (Level 4)
+│   └── agents/
+│       ├── tool_schemas.py  # tool definitions the LLM sees (Level 4)
+│       └── supervisor.py    # the tool-calling agent loop (Level 4)
 ├── models/                 # saved best model (generated, gitignored)
 ├── experiments/            # one JSON log per experiment, auto-numbered
 ├── tests/                  # pytest sanity tests
@@ -94,9 +124,19 @@ pip install -r requirements.txt
 python3 run_pipeline.py
 ```
 
-Level 2 (9 automatic experiments, full logging + leaderboard):
+Level 2 & 3 (automatic experiments with skip-duplicate tracking):
 ```bash
 python3 run_experiments.py
+```
+
+Level 4 (LLM agent — requires an Anthropic API key):
+```bash
+# Get a key at console.anthropic.com, then set it:
+export ANTHROPIC_API_KEY=sk-ant-...      # Mac/Linux
+setx ANTHROPIC_API_KEY "sk-ant-..."       # Windows (open a new terminal after)
+
+python3 run_agent.py "What's the best experiment so far and why?"
+python3 run_agent.py "Try Random Forest with max_depth 8 if it's not already tried"
 ```
 
 Run the tests:
@@ -136,9 +176,9 @@ come at higher levels.
 
 - [x] **Level 1** — Dataset, EDA, preprocessing, baseline models
 - [x] **Level 2** — Automatic experimentation loop across models/configs
-- [x] **Level 3** — Experiment tracking: signatures, duplicate-skipping, history summary (this repo state)
-- [ ] **Level 4** — LLM + tool calling
-- [ ] **Level 4** — LLM + tool calling
+- [x] **Level 3** — Experiment tracking: signatures, duplicate-skipping, history summary
+- [x] **Level 4** — LLM + tool calling with a human-approval gate on training (this repo state)
+- [ ] **Level 5** — LangGraph supervisor with conditional improvement loop
 - [ ] **Level 5** — LangGraph supervisor with conditional improvement loop
 - [ ] **Level 6** — Memory + RAG for ML guidance
 - [ ] **Level 7** — FastAPI + Docker deployment
